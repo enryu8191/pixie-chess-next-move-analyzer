@@ -1,0 +1,871 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pixie Chess Analyzer • Next Move Suggester</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500&amp;family=Playfair+Display:wght@700&amp;display=swap');
+        
+        :root {
+            --primary: #6366f1;
+        }
+        
+        body {
+            font-family: 'Inter', system_ui, sans-serif;
+        }
+        
+        .fantasy-title {
+            font-family: 'Playfair Display', Georgia, serif;
+            letter-spacing: -0.025em;
+        }
+
+        .chessboard {
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            width: 100%;
+            max-width: 520px;
+            aspect-ratio: 1 / 1;
+            border: 8px solid #334155;
+            border-radius: 8px;
+            box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.4);
+            overflow: hidden;
+        }
+
+        .square {
+            aspect-ratio: 1 / 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2.25rem;
+            font-weight: 600;
+            position: relative;
+            cursor: pointer;
+            user-select: none;
+            transition: all 0.1s ease;
+        }
+
+        .square.light {
+            background-color: #f1e7d0;
+            color: #334155;
+        }
+        
+        .square.dark {
+            background-color: #8b5e3c;
+            color: #f1e7d0;
+        }
+
+        .square:hover {
+            filter: brightness(1.1);
+        }
+
+        .square.selected {
+            background-color: #6366f1 !important;
+            color: white !important;
+            box-shadow: inset 0 0 0 4px #a5b4fc;
+        }
+
+        .square.legal {
+            background-color: #22c55e !important;
+            opacity: 0.85;
+        }
+
+        .square.legal:hover {
+            background-color: #16a34a !important;
+        }
+
+        .piece {
+            transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), 
+                        filter 0.2s ease;
+            text-shadow: 0 4px 6px rgb(0 0 0 / 0.3);
+            z-index: 10;
+        }
+
+        .piece:active {
+            transform: scale(1.15) translateY(-4px);
+        }
+
+        .pixie-piece {
+            filter: drop-shadow(0 0 8px rgb(167 139 250 / 0.6));
+        }
+
+        .analysis-card {
+            background: linear-gradient(145deg, #1e2937, #0f172a);
+        }
+
+        .section-header {
+            font-size: 0.75rem;
+            letter-spacing: 0.5px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .ability-badge {
+            font-size: 0.65rem;
+            padding: 1px 8px;
+            border-radius: 9999px;
+            background-color: #6366f120;
+            color: #a5b4fc;
+            border: 1px solid #6366f140;
+        }
+
+        .move-suggestion {
+            transition: all 0.2s ease;
+        }
+
+        .move-suggestion:hover {
+            transform: translateX(4px);
+            background-color: #334155;
+        }
+
+        .board-label {
+            font-size: 0.65rem;
+            color: #64748b;
+            font-weight: 500;
+        }
+
+        .pixie-glow {
+            box-shadow: 0 0 15px rgb(167 139 250 / 0.15);
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-200">
+    <!-- Header -->
+    <header class="border-b border-slate-800 bg-slate-900">
+        <div class="max-w-screen-xl mx-auto px-6 py-5 flex items-center justify-between">
+            <div class="flex items-center gap-x-3">
+                <div class="w-11 h-11 bg-indigo-600 rounded-2xl flex items-center justify-center shadow-inner">
+                    <i class="fa-solid fa-chess-king text-white text-3xl"></i>
+                </div>
+                <div>
+                    <h1 class="fantasy-title text-3xl font-bold tracking-tight">Pixie Chess</h1>
+                    <p class="text-xs text-slate-400 -mt-1">Next Move Analyzer</p>
+                </div>
+            </div>
+            
+            <div class="flex items-center gap-x-4">
+                <div class="px-3 py-1.5 bg-slate-900 border border-slate-700 rounded-2xl text-xs flex items-center gap-x-2">
+                    <div class="w-2 h-2 bg-emerald-400 rounded-full animate-pulse"></div>
+                    <span class="text-emerald-400 font-medium">Prototype v1.0</span>
+                </div>
+                <a href="https://www.pixiechess.xyz/" target="_blank" 
+                   class="flex items-center gap-x-2 text-sm px-4 py-2 hover:bg-slate-800 transition-colors rounded-2xl border border-slate-700">
+                    <i class="fa-solid fa-external-link-alt text-xs"></i>
+                    <span>Play on pixiechess.xyz</span>
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <div class="max-w-screen-xl mx-auto px-6 pt-8 pb-12">
+        <!-- Intro -->
+        <div class="max-w-2xl mb-8">
+            <h2 class="text-4xl font-semibold tracking-tight">Intelligent move suggestions<br>for magical chess.</h2>
+            <p class="mt-3 text-slate-400">Set up any Pixie Chess position, explore custom piece abilities, and receive next-move recommendations. Designed as a companion tool for analysis and automation scripting.</p>
+            
+            <div class="flex items-center gap-x-2 mt-4">
+                <div class="text-xs px-3 py-1 bg-slate-900 border border-slate-700 rounded-2xl flex items-center gap-x-1.5">
+                    <i class="fa-solid fa-magic text-indigo-400"></i>
+                    <span class="text-xs">Custom abilities supported</span>
+                </div>
+                <div class="text-xs px-3 py-1 bg-slate-900 border border-slate-700 rounded-2xl">Export for bots</div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            
+            <!-- Chessboard -->
+            <div class="lg:col-span-7">
+                <div class="flex items-center justify-between mb-3 px-1">
+                    <div>
+                        <span class="section-header text-slate-400">Board Position</span>
+                        <div class="flex items-center gap-x-2 mt-0.5">
+                            <span id="turn-indicator" 
+                                  class="inline-flex items-center px-3 py-1 rounded-2xl text-xs font-medium bg-emerald-900 text-emerald-300">
+                                <i class="fa-solid fa-chess-pawn mr-1.5"></i> WHITE TO MOVE
+                            </span>
+                            <span id="move-number" class="text-xs text-slate-500 font-mono">Move 1</span>
+                        </div>
+                    </div>
+                    
+                    <div class="flex items-center gap-x-2">
+                        <button onclick="resetBoard()" 
+                                class="px-3 py-1.5 text-xs flex items-center gap-x-2 hover:bg-slate-800 transition-colors border border-slate-700 rounded-2xl">
+                            <i class="fa-solid fa-undo text-xs"></i>
+                            <span>Reset</span>
+                        </button>
+                        <button onclick="loadPixieStartingPosition()" 
+                                class="px-3 py-1.5 text-xs flex items-center gap-x-2 bg-indigo-600 hover:bg-indigo-500 transition-colors rounded-2xl text-white">
+                            <i class="fa-solid fa-magic"></i>
+                            <span>Load Pixie Setup</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Board -->
+                <div class="relative mx-auto" style="max-width: 520px;">
+                    <div id="chessboard" class="chessboard mx-auto shadow-2xl"></div>
+                    
+                    <!-- Coordinates -->
+                    <div class="absolute -left-6 top-0 bottom-0 flex flex-col justify-around text-[10px] text-slate-500 font-mono pl-1" style="height: 520px; padding-top: 12px; padding-bottom: 12px;">
+                        <div>8</div><div>7</div><div>6</div><div>5</div><div>4</div><div>3</div><div>2</div><div>1</div>
+                    </div>
+                    <div class="absolute -bottom-5 left-0 right-0 flex justify-around text-[10px] text-slate-500 font-mono px-3">
+                        <div>a</div><div>b</div><div>c</div><div>d</div><div>e</div><div>f</div><div>g</div><div>h</div>
+                    </div>
+                </div>
+
+                <div class="mt-4 flex justify-center gap-x-2">
+                    <button onclick="flipBoard()" 
+                            class="text-xs px-4 py-2 flex items-center gap-x-2 border border-slate-700 hover:bg-slate-800 rounded-2xl transition-colors">
+                        <i class="fa-solid fa-sync-alt"></i>
+                        <span>Flip Board</span>
+                    </button>
+                    <button onclick="clearSelection()" 
+                            class="text-xs px-4 py-2 flex items-center gap-x-2 border border-slate-700 hover:bg-slate-800 rounded-2xl transition-colors">
+                        <span>Clear Selection</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Sidebar Controls -->
+            <div class="lg:col-span-5 space-y-6">
+                
+                <!-- Piece Palette -->
+                <div class="bg-slate-900 border border-slate-700 rounded-3xl p-5">
+                    <div class="section-header text-slate-400 mb-3 flex items-center justify-between">
+                        <span>Piece Palette</span>
+                        <span class="text-[10px] text-slate-500">Click square then piece to place</span>
+                    </div>
+                    
+                    <div class="grid grid-cols-4 gap-2">
+                        <!-- Standard -->
+                        <div onclick="selectPieceType('P','w')" class="cursor-pointer hover:scale-105 transition-transform bg-slate-800 border border-slate-600 rounded-2xl p-2 text-center">
+                            <div class="text-3xl">♙</div>
+                            <div class="text-[10px] mt-0.5 text-slate-400">Pawn</div>
+                        </div>
+                        <div onclick="selectPieceType('N','w')" class="cursor-pointer hover:scale-105 transition-transform bg-slate-800 border border-slate-600 rounded-2xl p-2 text-center">
+                            <div class="text-3xl">♘</div>
+                            <div class="text-[10px] mt-0.5 text-slate-400">Knight</div>
+                        </div>
+                        <div onclick="selectPieceType('B','w')" class="cursor-pointer hover:scale-105 transition-transform bg-slate-800 border border-slate-600 rounded-2xl p-2 text-center">
+                            <div class="text-3xl">♗</div>
+                            <div class="text-[10px] mt-0.5 text-slate-400">Bishop</div>
+                        </div>
+                        <div onclick="selectPieceType('R','w')" class="cursor-pointer hover:scale-105 transition-transform bg-slate-800 border border-slate-600 rounded-2xl p-2 text-center">
+                            <div class="text-3xl">♖</div>
+                            <div class="text-[10px] mt-0.5 text-slate-400">Rook</div>
+                        </div>
+                        
+                        <!-- Pixie Pieces -->
+                        <div onclick="selectPieceType('B-freeze','w')" class="cursor-pointer hover:scale-105 transition-transform bg-indigo-950 border border-indigo-700 rounded-2xl p-2 text-center relative">
+                            <div class="text-3xl pixie-glow">♗</div>
+                            <div class="text-[9px] mt-0.5 text-indigo-300 font-medium">Freeze Bishop</div>
+                            <div class="absolute -top-1 -right-1"><span class="ability-badge text-[8px]">PIXIE</span></div>
+                        </div>
+                        <div onclick="selectPieceType('B-bounce','w')" class="cursor-pointer hover:scale-105 transition-transform bg-indigo-950 border border-indigo-700 rounded-2xl p-2 text-center relative">
+                            <div class="text-3xl pixie-glow">♗</div>
+                            <div class="text-[9px] mt-0.5 text-indigo-300 font-medium">Bounce Bishop</div>
+                            <div class="absolute -top-1 -right-1"><span class="ability-badge text-[8px]">PIXIE</span></div>
+                        </div>
+                        <div onclick="selectPieceType('R-push','w')" class="cursor-pointer hover:scale-105 transition-transform bg-indigo-950 border border-indigo-700 rounded-2xl p-2 text-center relative">
+                            <div class="text-3xl pixie-glow">♖</div>
+                            <div class="text-[9px] mt-0.5 text-indigo-300 font-medium">Push Rook</div>
+                            <div class="absolute -top-1 -right-1"><span class="ability-badge text-[8px]">PIXIE</span></div>
+                        </div>
+                        <div onclick="selectPieceType('N-long','w')" class="cursor-pointer hover:scale-105 transition-transform bg-indigo-950 border border-indigo-700 rounded-2xl p-2 text-center relative">
+                            <div class="text-3xl pixie-glow">♘</div>
+                            <div class="text-[9px] mt-0.5 text-indigo-300 font-medium">Long Knight</div>
+                            <div class="absolute -top-1 -right-1"><span class="ability-badge text-[8px]">PIXIE</span></div>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-3 text-[10px] text-center text-slate-500">Right-click square to remove piece • Currently placing: <span id="current-piece-type" class="font-mono text-indigo-400">None</span></div>
+                </div>
+
+                <!-- Analysis -->
+                <div class="bg-slate-900 border border-slate-700 rounded-3xl p-5 analysis-card">
+                    <div class="section-header text-slate-400 mb-3">Next Move Analysis</div>
+                    
+                    <button onclick="suggestNextMove()" 
+                            class="w-full py-3.5 bg-white text-slate-950 hover:bg-amber-50 active:bg-white transition-all font-semibold rounded-2xl flex items-center justify-center gap-x-2 text-sm shadow-inner">
+                        <i class="fa-solid fa-magic mr-2"></i>
+                        <span>SUGGEST BEST NEXT MOVE</span>
+                    </button>
+                    
+                    <div id="analysis-result" class="mt-4 hidden">
+                        <div class="text-xs uppercase tracking-widest text-slate-500 mb-1.5">Recommended Move</div>
+                        
+                        <div id="best-move-display" 
+                             class="move-suggestion bg-slate-800 border border-slate-600 rounded-2xl px-4 py-3 flex items-center justify-between cursor-pointer">
+                            <div>
+                                <span id="best-move-san" class="font-mono text-2xl font-semibold text-emerald-400"></span>
+                                <span id="best-move-eval" class="ml-3 text-sm text-emerald-400 font-medium"></span>
+                            </div>
+                            <i class="fa-solid fa-arrow-right text-emerald-400"></i>
+                        </div>
+                        
+                        <div id="analysis-notes" class="mt-3 text-xs leading-relaxed text-slate-300 bg-slate-950/60 p-3 rounded-2xl border border-slate-700">
+                            <!-- Populated by JS -->
+                        </div>
+                        
+                        <div class="mt-3">
+                            <div class="text-xs text-slate-500 mb-1">Alternative moves</div>
+                            <div id="alt-moves" class="flex flex-wrap gap-1.5 text-xs"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Ability Reference -->
+                <div class="bg-slate-900 border border-slate-700 rounded-3xl p-5 text-sm">
+                    <div class="section-header text-slate-400 mb-3">Known Pixie Abilities</div>
+                    <div class="space-y-2 text-xs">
+                        <div class="flex gap-2"><span class="ability-badge flex-shrink-0">Freeze Bishop</span> <span class="text-slate-400">Freezes opponent piece movement on target square.</span></div>
+                        <div class="flex gap-2"><span class="ability-badge flex-shrink-0">Bounce Bishop</span> <span class="text-slate-400">Bounces off board edges for extended paths.</span></div>
+                        <div class="flex gap-2"><span class="ability-badge flex-shrink-0">Push Rook</span> <span class="text-slate-400">Pushes adjacent opponent pieces away.</span></div>
+                        <div class="flex gap-2"><span class="ability-badge flex-shrink-0">Long Knight</span> <span class="text-slate-400">Extended knight leaps (custom distances).</span></div>
+                    </div>
+                    <p class="text-[10px] text-slate-500 mt-3">Abilities are contextual. Full implementation requires complete game rules from pixiechess.xyz.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer actions -->
+        <div class="mt-8 flex flex-wrap items-center justify-between gap-y-3 text-xs border-t border-slate-800 pt-6">
+            <div class="flex items-center gap-x-4 text-slate-400">
+                <button onclick="exportPosition()" class="flex items-center gap-x-1.5 hover:text-slate-200 transition-colors">
+                    <i class="fa-solid fa-download"></i>
+                    <span>Export Position (JSON)</span>
+                </button>
+                <button onclick="copyFEN()" class="flex items-center gap-x-1.5 hover:text-slate-200 transition-colors">
+                    <i class="fa-solid fa-copy"></i>
+                    <span>Copy Extended FEN</span>
+                </button>
+            </div>
+            
+            <div class="text-slate-500 max-w-md text-right">
+                This prototype supports manual setup and basic suggestions. For production automation or full minimax with ability simulation, integrate a Python backend (python-chess + custom move generator). 
+                <span class="text-indigo-400 cursor-pointer" onclick="showIntegrationHelp()">Learn more →</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Tailwind script
+        function initializeTailwind() {
+            document.documentElement.style.setProperty('--accent', '#6366f1');
+        }
+
+        // Board state: 8x8 array. Each cell: {type: string, color: 'w'|'b', variant?: string}
+        let board = Array(8).fill().map(() => Array(8).fill(null));
+        let selectedSquare = null;
+        let currentPieceToPlace = null;
+        let isWhiteTurn = true;
+        let moveCount = 1;
+        let boardFlipped = false;
+
+        const files = ['a','b','c','d','e','f','g','h'];
+        const ranks = [8,7,6,5,4,3,2,1];
+
+        function getSquareNotation(row, col) {
+            return files[col] + ranks[row];
+        }
+
+        function createBoard() {
+            const boardEl = document.getElementById('chessboard');
+            boardEl.innerHTML = '';
+            boardEl.style.gridTemplateColumns = 'repeat(8, 1fr)';
+
+            for (let row = 0; row < 8; row++) {
+                for (let col = 0; col < 8; col++) {
+                    const square = document.createElement('div');
+                    square.className = `square ${(row + col) % 2 === 0 ? 'light' : 'dark'}`;
+                    square.dataset.row = row;
+                    square.dataset.col = col;
+                    
+                    square.addEventListener('click', () => handleSquareClick(row, col));
+                    square.addEventListener('contextmenu', (e) => {
+                        e.preventDefault();
+                        removePiece(row, col);
+                    });
+                    
+                    // Drag and drop support (basic)
+                    square.addEventListener('dragover', e => e.preventDefault());
+                    square.addEventListener('drop', e => {
+                        e.preventDefault();
+                        if (currentPieceToPlace) {
+                            placePieceOnSquare(row, col, currentPieceToPlace);
+                            currentPieceToPlace = null;
+                            updateCurrentPieceDisplay();
+                        }
+                    });
+
+                    boardEl.appendChild(square);
+                }
+            }
+            renderBoard();
+        }
+
+        function renderBoard() {
+            const squares = document.querySelectorAll('#chessboard .square');
+            
+            squares.forEach(square => {
+                const row = parseInt(square.dataset.row);
+                const col = parseInt(square.dataset.col);
+                const piece = board[row][col];
+                
+                square.innerHTML = '';
+                square.classList.remove('selected', 'legal');
+                
+                if (piece) {
+                    const pieceEl = document.createElement('div');
+                    pieceEl.className = `piece text-5xl flex items-center justify-center w-full h-full ${piece.variant ? 'pixie-piece' : ''}`;
+                    
+                    let symbol = getPieceSymbol(piece.type, piece.color);
+                    pieceEl.innerHTML = symbol;
+                    
+                    if (piece.variant) {
+                        pieceEl.title = `${piece.variant} ability`;
+                    }
+                    
+                    square.appendChild(pieceEl);
+                }
+            });
+            
+            updateTurnIndicator();
+        }
+
+        function getPieceSymbol(type, color) {
+            const isWhite = color === 'w';
+            const prefix = isWhite ? '' : '';
+            
+            switch(type) {
+                case 'P': return isWhite ? '♙' : '♟';
+                case 'N': return isWhite ? '♘' : '♞';
+                case 'B': return isWhite ? '♗' : '♝';
+                case 'R': return isWhite ? '♖' : '♜';
+                case 'Q': return isWhite ? '♕' : '♛';
+                case 'K': return isWhite ? '♔' : '♚';
+                default: return isWhite ? '♙' : '♟';
+            }
+        }
+
+        function updateTurnIndicator() {
+            const indicator = document.getElementById('turn-indicator');
+            const moveNum = document.getElementById('move-number');
+            
+            if (isWhiteTurn) {
+                indicator.innerHTML = `<i class="fa-solid fa-chess-pawn mr-1.5"></i> WHITE TO MOVE`;
+                indicator.className = `inline-flex items-center px-3 py-1 rounded-2xl text-xs font-medium bg-emerald-900 text-emerald-300`;
+            } else {
+                indicator.innerHTML = `<i class="fa-solid fa-chess-pawn mr-1.5"></i> BLACK TO MOVE`;
+                indicator.className = `inline-flex items-center px-3 py-1 rounded-2xl text-xs font-medium bg-rose-900 text-rose-300`;
+            }
+            moveNum.textContent = `Move ${moveCount}`;
+        }
+
+        function handleSquareClick(row, col) {
+            const piece = board[row][col];
+            
+            if (currentPieceToPlace) {
+                placePieceOnSquare(row, col, currentPieceToPlace);
+                currentPieceToPlace = null;
+                updateCurrentPieceDisplay();
+                return;
+            }
+            
+            if (selectedSquare) {
+                const [selRow, selCol] = selectedSquare;
+                
+                if (selRow === row && selCol === col) {
+                    clearSelection();
+                } else {
+                    attemptMove(selRow, selCol, row, col);
+                }
+            } else if (piece) {
+                selectedSquare = [row, col];
+                highlightSelected(row, col);
+                highlightLegalMoves(row, col);
+            }
+        }
+
+        function highlightSelected(row, col) {
+            clearHighlights();
+            const squares = document.querySelectorAll('#chessboard .square');
+            squares.forEach(sq => {
+                if (parseInt(sq.dataset.row) === row && parseInt(sq.dataset.col) === col) {
+                    sq.classList.add('selected');
+                }
+            });
+        }
+
+        function highlightLegalMoves(row, col) {
+            clearHighlights();
+            const piece = board[row][col];
+            if (!piece) return;
+            
+            const squares = document.querySelectorAll('#chessboard .square');
+            
+            for (let r = 0; r < 8; r++) {
+                for (let c = 0; c < 8; c++) {
+                    if (r === row && c === col) continue;
+                    
+                    const targetPiece = board[r][c];
+                    const isCapture = targetPiece && targetPiece.color !== piece.color;
+                    
+                    let isLegal = false;
+                    
+                    if (piece.type === 'P') {
+                        const dir = piece.color === 'w' ? -1 : 1;
+                        if (c === col && r === row + dir && !targetPiece) isLegal = true;
+                        if (Math.abs(c - col) === 1 && r === row + dir && isCapture) isLegal = true;
+                    } else if (['R', 'B', 'Q'].includes(piece.type) || piece.variant) {
+                        isLegal = true;
+                    } else if (piece.type === 'N' || piece.type === 'N-long') {
+                        const dr = Math.abs(r - row);
+                        const dc = Math.abs(c - col);
+                        if ((dr === 2 && dc === 1) || (dr === 1 && dc === 2)) isLegal = true;
+                    } else if (piece.type === 'K') {
+                        if (Math.abs(r - row) <= 1 && Math.abs(c - col) <= 1) isLegal = true;
+                    }
+                    
+                    if (isLegal) {
+                        const sq = Array.from(squares).find(s => 
+                            parseInt(s.dataset.row) === r && parseInt(s.dataset.col) === c
+                        );
+                        if (sq) sq.classList.add('legal');
+                    }
+                }
+            }
+        }
+
+        function clearHighlights() {
+            document.querySelectorAll('#chessboard .square').forEach(sq => {
+                sq.classList.remove('selected', 'legal');
+            });
+        }
+
+        function clearSelection() {
+            selectedSquare = null;
+            clearHighlights();
+        }
+
+        function attemptMove(fromRow, fromCol, toRow, toCol) {
+            const piece = board[fromRow][fromCol];
+            if (!piece) return;
+            
+            const target = board[toRow][toCol];
+            
+            if (!target || target.color !== piece.color) {
+                board[toRow][toCol] = piece;
+                board[fromRow][fromCol] = null;
+                
+                isWhiteTurn = !isWhiteTurn;
+                if (isWhiteTurn) moveCount++;
+                
+                clearSelection();
+                renderBoard();
+            } else {
+                clearSelection();
+            }
+        }
+
+        function placePieceOnSquare(row, col, pieceData) {
+            board[row][col] = {
+                type: pieceData.type,
+                color: pieceData.color,
+                variant: pieceData.variant || null
+            };
+            renderBoard();
+        }
+
+        function removePiece(row, col) {
+            board[row][col] = null;
+            renderBoard();
+        }
+
+        function selectPieceType(type, color) {
+            currentPieceToPlace = { type, color, variant: null };
+            
+            if (type.includes('-')) {
+                const [baseType, variant] = type.split('-');
+                currentPieceToPlace.type = baseType;
+                currentPieceToPlace.variant = variant;
+            }
+            
+            updateCurrentPieceDisplay();
+            
+            document.querySelectorAll('#chessboard .square').forEach(sq => {
+                sq.style.boxShadow = 'inset 0 0 0 3px #6366f1';
+                setTimeout(() => {
+                    if (sq) sq.style.boxShadow = '';
+                }, 1200);
+            });
+        }
+
+        function updateCurrentPieceDisplay() {
+            const el = document.getElementById('current-piece-type');
+            if (!currentPieceToPlace) {
+                el.textContent = 'None';
+                return;
+            }
+            let label = currentPieceToPlace.type;
+            if (currentPieceToPlace.variant) label += ` (${currentPieceToPlace.variant})`;
+            el.textContent = label;
+        }
+
+        function resetBoard() {
+            board = Array(8).fill().map(() => Array(8).fill(null));
+            isWhiteTurn = true;
+            moveCount = 1;
+            selectedSquare = null;
+            currentPieceToPlace = null;
+            
+            const backRank = ['R','N','B','Q','K','B','N','R'];
+            for (let col = 0; col < 8; col++) {
+                board[0][col] = { type: backRank[col], color: 'b' };
+                board[1][col] = { type: 'P', color: 'b' };
+                board[6][col] = { type: 'P', color: 'w' };
+                board[7][col] = { type: backRank[col], color: 'w' };
+            }
+            
+            renderBoard();
+            document.getElementById('analysis-result').classList.add('hidden');
+            updateCurrentPieceDisplay();
+        }
+
+        function loadPixieStartingPosition() {
+            resetBoard();
+            
+            board[7][2] = { type: 'B', color: 'w', variant: 'freeze' };
+            board[7][1] = { type: 'N', color: 'w', variant: 'long' };
+            board[0][5] = { type: 'R', color: 'b', variant: 'push' };
+            
+            renderBoard();
+            
+            const toast = document.createElement('div');
+            toast.className = 'fixed bottom-4 right-4 bg-slate-800 border border-indigo-700 text-xs px-4 py-2 rounded-2xl flex items-center gap-x-2';
+            toast.innerHTML = `<i class="fa-solid fa-magic text-indigo-400"></i> <span>Pixie pieces loaded. Customize further with the palette.</span>`;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 2800);
+        }
+
+        function flipBoard() {
+            boardFlipped = !boardFlipped;
+            const boardEl = document.getElementById('chessboard');
+            boardEl.style.transform = boardFlipped ? 'rotate(180deg)' : 'rotate(0deg)';
+            setTimeout(renderBoard, 50);
+        }
+
+        function suggestNextMove() {
+            const resultDiv = document.getElementById('analysis-result');
+            resultDiv.classList.remove('hidden');
+            
+            const moves = generateSimpleMoves();
+            
+            if (moves.length === 0) {
+                document.getElementById('best-move-san').textContent = 'No moves';
+                document.getElementById('analysis-notes').innerHTML = 'Position appears terminal or no legal actions found in current demo rules.';
+                return;
+            }
+            
+            moves.sort((a, b) => b.score - a.score);
+            const best = moves[0];
+            
+            document.getElementById('best-move-san').textContent = best.san;
+            document.getElementById('best-move-eval').textContent = best.eval;
+            
+            let notes = best.notes || 'Standard development or capture prioritized.';
+            if (best.pixieNote) notes += ` <span class="text-indigo-300">${best.pixieNote}</span>`;
+            
+            document.getElementById('analysis-notes').innerHTML = notes;
+            
+            const altContainer = document.getElementById('alt-moves');
+            altContainer.innerHTML = '';
+            
+            moves.slice(1, 4).forEach(m => {
+                const pill = document.createElement('div');
+                pill.className = `px-3 py-1 bg-slate-800 border border-slate-600 rounded-2xl text-xs font-mono cursor-pointer hover:border-indigo-500`;
+                pill.innerHTML = `${m.san} <span class="text-emerald-400/70 text-[10px]">${m.eval}</span>`;
+                pill.onclick = () => {
+                    alert(`Alternative: ${m.san}\n${m.notes || ''}`);
+                };
+                altContainer.appendChild(pill);
+            });
+            
+            console.log('%c[Pixie Analyzer] Suggested move for automation:', 'color:#64748b', best);
+        }
+
+        function generateSimpleMoves() {
+            const moves = [];
+            const currentColor = isWhiteTurn ? 'w' : 'b';
+            
+            for (let r = 0; r < 8; r++) {
+                for (let c = 0; c < 8; c++) {
+                    const piece = board[r][c];
+                    if (!piece || piece.color !== currentColor) continue;
+                    
+                    for (let tr = 0; tr < 8; tr++) {
+                        for (let tc = 0; tc < 8; tc++) {
+                            if (tr === r && tc === c) continue;
+                            
+                            const targetPiece = board[tr][tc];
+                            if (targetPiece && targetPiece.color === currentColor) continue;
+                            
+                            let score = Math.random() * 10;
+                            let san = `${files[c]}${ranks[r]}${files[tc]}${ranks[tr]}`;
+                            let notes = 'Development move.';
+                            let pixieNote = null;
+                            
+                            if (targetPiece) {
+                                score += 25;
+                                notes = `Capture on ${files[tc]}${ranks[tr]}.`;
+                            }
+                            
+                            if ((tr === 3 || tr === 4) && (tc === 3 || tc === 4)) score += 8;
+                            
+                            if (piece.variant === 'freeze') {
+                                score += 12;
+                                pixieNote = 'Consider freezing key defender after move.';
+                            }
+                            if (piece.variant === 'push') {
+                                score += 9;
+                                pixieNote = 'Push can disrupt opponent coordination.';
+                            }
+                            if (piece.variant === 'long') {
+                                score += 7;
+                            }
+                            
+                            if ((piece.type === 'N' || piece.type === 'B') && (r === 7 || r === 0)) score += 6;
+                            
+                            moves.push({
+                                from: getSquareNotation(r, c),
+                                to: getSquareNotation(tr, tc),
+                                san: san,
+                                score: score,
+                                eval: (score > 30 ? '+' : '') + (score / 10).toFixed(1),
+                                notes: notes,
+                                pixieNote: pixieNote,
+                                piece: piece
+                            });
+                        }
+                    }
+                }
+            }
+            
+            return moves.sort((a,b) => b.score - a.score).slice(0, 12);
+        }
+
+        function exportPosition() {
+            const positionData = {
+                board: board,
+                turn: isWhiteTurn ? 'w' : 'b',
+                moveNumber: moveCount,
+                timestamp: new Date().toISOString(),
+                note: "Exported from Pixie Chess Next Move Analyzer. Use in your automation bot."
+            };
+            
+            const dataStr = JSON.stringify(positionData, null, 2);
+            const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+            
+            const exportFileDefaultName = `pixie-position-${Date.now()}.json`;
+            
+            const linkElement = document.createElement('a');
+            linkElement.setAttribute('href', dataUri);
+            linkElement.setAttribute('download', exportFileDefaultName);
+            linkElement.click();
+        }
+
+        function copyFEN() {
+            let fen = '';
+            for (let r = 0; r < 8; r++) {
+                let empty = 0;
+                for (let c = 0; c < 8; c++) {
+                    const p = board[r][c];
+                    if (!p) {
+                        empty++;
+                    } else {
+                        if (empty > 0) { fen += empty; empty = 0; }
+                        let char = p.type.toLowerCase();
+                        if (p.color === 'w') char = p.type;
+                        if (p.variant) char += `-${p.variant}`;
+                        fen += char;
+                    }
+                }
+                if (empty > 0) fen += empty;
+                if (r < 7) fen += '/';
+            }
+            fen += ` ${isWhiteTurn ? 'w' : 'b'} ${moveCount}`;
+            
+            navigator.clipboard.writeText(fen).then(() => {
+                const toast = document.createElement('div');
+                toast.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);';
+                toast.className = 'bg-slate-800 text-xs px-4 py-2 rounded-2xl border border-slate-600';
+                toast.textContent = 'Extended FEN copied to clipboard';
+                document.body.appendChild(toast);
+                setTimeout(() => toast.remove(), 1600);
+            }).catch(() => {
+                prompt('Extended FEN (copy manually):', fen);
+            });
+        }
+
+        function showIntegrationHelp() {
+            const modal = document.createElement('div');
+            modal.className = 'fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-6';
+            modal.innerHTML = `
+                <div class="bg-slate-900 border border-slate-700 rounded-3xl max-w-lg w-full p-8">
+                    <h3 class="text-xl font-semibold mb-4">Integration with Automation</h3>
+                    <div class="prose prose-invert text-sm text-slate-300 space-y-4">
+                        <p>This analyzer can serve as the decision engine for your Pixie Chess bot.</p>
+                        
+                        <div>
+                            <strong class="text-indigo-400">Recommended architecture:</strong><br>
+                            • Frontend (this page) for manual testing &amp; position setup.<br>
+                            • Python backend (FastAPI/Flask) with extended <code>python-chess</code> + custom ability resolver.<br>
+                            • Bot queries position → receives best move + ability notes.
+                        </div>
+                        
+                        <div class="bg-slate-950 p-3 rounded-2xl text-xs font-mono border border-slate-700">
+                            // Example bot flow<br>
+                            position = export_json()<br>
+                            move = requests.post('/analyze', json=position).json()<br>
+                            submit_move_to_pixiechess(move)
+                        </div>
+                        
+                        <p class="text-xs text-slate-400">Full ability simulation, deeper search (depth 4+), and on-chain interaction require additional development.</p>
+                    </div>
+                    
+                    <div class="mt-6 flex justify-end">
+                        <button onclick="this.closest('.fixed').remove()" 
+                                class="px-5 py-2 text-sm bg-slate-800 hover:bg-slate-700 rounded-2xl border border-slate-600">Close</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+        }
+
+        function initialize() {
+            initializeTailwind();
+            createBoard();
+            resetBoard();
+            
+            document.addEventListener('keydown', function(e) {
+                if (e.key === '/' && document.activeElement.tagName === 'BODY') {
+                    e.preventDefault();
+                    suggestNextMove();
+                }
+                if (e.key.toLowerCase() === 'r' && e.metaKey) {
+                    e.preventDefault();
+                    resetBoard();
+                }
+            });
+            
+            console.log('%c[PixieChess Analyzer] Prototype initialized. Ready for use and automation integration.', 'color:#475569');
+        }
+
+        window.onload = initialize;
+    </script>
+</body>
+</html>
