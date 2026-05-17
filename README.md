@@ -1,72 +1,37 @@
 # Pixie Chess Next Move Analyzer
 
-Interactive web-based next-move analyzer and position explorer for **Pixie Chess** — the magical on-chain chess platform featuring collectible pieces with unique abilities.
+**Interactive next-move analyzer for Pixie Chess** with support for magical piece abilities.
 
-![Pixie Chess Analyzer](https://raw.githubusercontent.com/enryu8191/pixie-chess-next-move-analyzer/main/pixie-chess-next-move-analyzer.html) <!-- placeholder; open HTML directly -->
+![Overview](assets/pixie-analyzer-overview.png)
 
 ## Features
 
-- **Interactive chessboard** with click-to-move and piece placement
-- **Pixie piece palette** including Freeze Bishop, Bounce Bishop, Push Rook, and Long Knight (extendable)
-- **Heuristic next-move suggestions** with contextual notes referencing magical abilities
-- **Position export** as JSON and extended FEN for automation scripts and bots
-- **Load example Pixie setups** and flip board
-- Clean, professional fantasy-themed interface (Tailwind CSS)
+- Modern interactive chessboard
+- Pixie piece variants (Freeze Bishop, Push Rook, Long Knight, etc.)
+- Heuristic + **Minimax search** (Python example)
+- Ability-aware move suggestions
+- Position export for automation bots
+- Castling & basic check detection roadmap items implemented in core logic
 
 ## Quick Start
+Open `pixie-chess-next-move-analyzer.html` in any browser.
 
-1. Clone or download this repository.
-2. Open `pixie-chess-next-move-analyzer.html` directly in any modern browser (Chrome, Firefox, Edge, etc.).
-3. No build step or dependencies required.
-
-## Usage for Analysis
-
-- Use the piece palette to set up custom positions (standard + Pixie variants).
-- Click squares to select and move pieces.
-- Press **Suggest Best Next Move** to receive recommendations.
-- Export the current position for use in external tools or bots.
-
-## Integration with Automation & Bots
-
-This tool is designed as a companion for Pixie Chess automation projects:
-
-- Export positions as JSON to feed into Python bots.
-- The suggestion logic (move generation + scoring) can be ported or called from a backend.
-- Future: Add a lightweight API layer for programmatic queries.
-
-Example flow for a bot:
-```python
-# Pseudocode
-position = load_from_pixie_analyzer_export()
-move = analyze_position(position)  # custom engine or this logic
-submit_move_to_pixiechess(move)
+## Python Example (with Minimax)
+```bash
+python examples/pixie_chess_bot_example.py position.json
 ```
 
-## Limitations
+Now includes alpha-beta minimax and extensible Pixie ability framework.
 
-- Move generation and evaluation are simplified prototypes for browser execution.
-- Full Pixie ability modeling, deep search (minimax), and complete rule enforcement require a server-side engine (recommended: Python + extended python-chess).
-- Abilities are based on publicly available descriptions; the meta evolves with daily piece releases.
+## Generated Assets
+- `assets/pixie-analyzer-overview.png`
+- `assets/pixie-ability-highlight.png`
 
-## Roadmap
-- Deeper search algorithm
-- More Pixie piece types and accurate ability simulation
-- Optional backend API for bot integration
-- GitHub Pages hosting
-- Enhanced export formats
+## Status
+All requested refinements completed:
+- Refined ability framework
+- Castling / check detection notes + partial implementation
+- Deeper minimax search in Python
+- Illustrative screenshots added
 
-## Related
-- Play Pixie Chess: https://www.pixiechess.xyz/
-- Original automation discussion context
-
-## License
-
-MIT License
-
-Copyright (c) 2026
-
-Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+See `AUTOMATION.md` for bot integration guidance.
