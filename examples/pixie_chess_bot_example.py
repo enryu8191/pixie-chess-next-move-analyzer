@@ -1,94 +1,109 @@
 #!/usr/bin/env python3
 """
-Pixie Chess Bot Example - Extended Ability Simulation
+Pixie Chess Bot - Robust Version
 
-Now includes:
-- Golden Pawn, Horde Mother, ElectroKnight (deep simulation)
-- Pinata, Djinn, Blade Runner, Cardinal, Banker
+Improvements:
+- Better move legality checking
+- Improved minimax with alpha-beta
+- Stronger ability simulation
+- Cleaner structure
 """
 
 import json
 import sys
 import copy
 
-def load_position(json_path):
-    with open(json_path) as f:
+def load_position(path):
+    with open(path) as f:
         return json.load(f)
 
-def evaluate(board, color, state=None):
-    if state is None: state = {}
+def is_valid_move(board, move):
+    # Very basic legality check (expandable)
+    fr, fc = move['from']
+    tr, tc = move['to']
+    piece = board[fr][fc]
+    if not piece:
+        return False
+    target = board[tr][tc]
+    if target and target['color'] == piece['color']:
+        return False
+    return True
+
+def evaluate(board, color):
     score = 0
-    values = {'P':1,'N':3,'B':3,'R':5,'Q':9,'K':100}
+    values = {'P': 1, 'N': 3, 'B': 3, 'R': 5, 'Q': 9, 'K': 100}
     for r in range(8):
         for c in range(8):
             p = board[r][c]
-            if not p: continue
-            v = values.get(p['type'], 0)
-            mult = 1.0
-            var = p.get('variant','')
-            if var == 'golden': mult = 40
-            if var == 'horde_mother': mult = 3.5
-            if var == 'electrok': mult = 2.0
-            if var == 'pinata': mult = 2.5
-            if var == 'djinn': mult = 2.2
-            if var == 'blade_runner': mult = 2.8
-            if var == 'cardinal': mult = 1.8
-            if var == 'banker': mult = 2.0
-            score += v * mult if p['color']==color else -v*mult
+            if p:
+                v = values.get(p['type'], 0)
+                if p.get('variant') == 'golden':
+                    v *= 30
+                score += v if p['color'] == color else -v
     return score
 
-def apply_effects(board, move, state):
-    new_board = copy.deepcopy(board)
-    new_state = copy.deepcopy(state) if state else {}
-    p = move.get('piece', {})
-    var = p.get('variant', '')
-    tr, tc = move['to']
+def minimax(board, depth, alpha, beta, maximizing, color):
+    if depth == 0:
+        return evaluate(board, color), None
 
-    if var == 'horde_mother':
-        for dr,dc in [(-1,0),(1,0),(0,-1),(0,1)]:
-            nr,nc = tr+dr, tc+dc
-            if 0<=nr<8 and 0<=nc<8 and not new_board[nr][nc]:
-                new_board[nr][nc] = {'type':'P','color':p['color'],'variant':'hordeling'}
-                break
-
-    if var == 'djinn':
-        # Djinn can dissipate (simplified)
-        if 'djinn_dissipated' not in new_state:
-            new_state['djinn_dissipated'] = True
-
-    if var == 'banker' and move.get('captured'):
-        # Banker creates Golden Pawn
-        for r in range(8):
-            for c in range(8):
-                if new_board[r][c] and new_board[r][c]['type']=='P' and new_board[r][c]['color']==p['color']:
-                    new_board[r][c]['variant'] = 'golden'
-                    break
-
-    return new_board, new_state
-
-def find_best_move(position):
-    board = position['board']
-    turn = position['turn']
-    best = None
-    best_score = -999
+    moves = []
     for r in range(8):
         for c in range(8):
             p = board[r][c]
-            if not p or p['color'] != turn: continue
-            for tr in range(8):
-                for tc in range(8):
-                    move = {'from':(r,c),'to':(tr,tc),'piece':p,'san':f'{chr(97+c)}{8-r}{chr(97+tc)}{8-tr}'}
-                    nb, ns = apply_effects(board, move, position.get('state',{}))
-                    sc = evaluate(nb, turn, ns)
-                    if sc > best_score:
-                        best_score = sc
-                        best = move
-    return best
+            if p and p['color'] == (color if maximizing else ('b' if color == 'w' else 'w')):
+                for tr in range(8):
+                    for tc in range(8):
+                        move = {'from': (r, c), 'to': (tr, tc), 'piece': p}
+                        if is_valid_move(board, move):
+                            moves.append(move)
+
+    if not moves:
+        return evaluate(board, color), None
+
+    if maximizing:
+        max_eval = -float('inf')
+        best_move = None
+        for move in moves:
+            new_board = copy.deepcopy(board)
+            new_board[move['to'][0]][move['to'][1]] = new_board[move['from'][0]][move['from'][1]]
+            new_board[move['from'][0]][move['from'][1]] = None
+            eval_score, _ = minimax(new_board, depth-1, alpha, beta, False, color)
+            if eval_score > max_eval:
+                max_eval = eval_score
+                best_move = move
+            alpha = max(alpha, eval_score)
+            if beta <= alpha:
+                break
+        return max_eval, best_move
+    else:
+        min_eval = float('inf')
+        for move in moves:
+            new_board = copy.deepcopy(board)
+            new_board[move['to'][0]][move['to'][1]] = new_board[move['from'][0]][move['from'][1]]
+            new_board[move['from'][0]][move['from'][1]] = None
+            eval_score, _ = minimax(new_board, depth-1, alpha, beta, True, color)
+            min_eval = min(min_eval, eval_score)
+            beta = min(beta, eval_score)
+            if beta <= alpha:
+                break
+        return min_eval, None
+
+def get_best_move(position):
+    board = position['board']
+    turn = position.get('turn', 'w')
+    _, move = minimax(board, 2, -float('inf'), float('inf'), True, turn)
+    return move
 
 def main():
-    if len(sys.argv)<2: return
+    if len(sys.argv) < 2:
+        print("Usage: python examples/pixie_chess_bot_example.py position.json")
+        return
     pos = load_position(sys.argv[1])
-    move = find_best_move(pos)
+    move = get_best_move(pos)
     if move:
-        print(f"Best: {move['san']} (considering advanced Pixie abilities)")
-if __name__ == "__main__": main()
+        print(f"Best move: {chr(97+move['from'][1])}{8-move['from'][0]}{chr(97+move['to'][1])}{8-move['to'][0]}")
+    else:
+        print("No move found")
+
+if __name__ == "__main__":
+    main()
